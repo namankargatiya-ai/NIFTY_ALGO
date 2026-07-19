@@ -1,15 +1,30 @@
 """
 Central configuration for the Nifty Algo Trader.
 
-Credentials are read from environment variables, loaded from a local `.env`
-file via python-dotenv — never hardcode secrets here. Copy `.env.example`
-to `.env` and fill in your own Upstox app credentials before running
-`mode="live"`.
+Credentials are read from (in order of preference):
+  1. Streamlit Cloud secrets (st.secrets) — used when deployed, so the
+     token/keys never need to live in a file on the server at all.
+  2. Environment variables, loaded from a local `.env` file via
+     python-dotenv — used for local runs (python app.py, or streamlit run
+     locally with no secrets.toml).
+Never hardcode secrets here. Copy `.env.example` to `.env` and fill in your
+own Upstox app credentials before running `mode="live"`.
 """
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _get_secret(key, default=""):
+    try:
+        import streamlit as st
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass  # not running under Streamlit, or no secrets.toml configured
+    return os.getenv(key, default)
+
 
 # ---------------------------------------------------------------------------
 # Mode
@@ -20,15 +35,15 @@ load_dotenv()
 #             otherwise falls back to utils/synthetic_data.py)
 # "live"   -> orders/live_trader.py places REAL orders via broker/upstox_api.py
 #             Only switch this once you have tested "paper" thoroughly.
-TRADING_MODE = os.getenv("TRADING_MODE", "paper")
+TRADING_MODE = _get_secret("TRADING_MODE", "paper")
 
 # ---------------------------------------------------------------------------
 # Upstox credentials (required for live data / live trading)
 # ---------------------------------------------------------------------------
-UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY", "")
-UPSTOX_API_SECRET = os.getenv("UPSTOX_API_SECRET", "")
-UPSTOX_REDIRECT_URI = os.getenv("UPSTOX_REDIRECT_URI", "https://localhost:3000/callback")
-UPSTOX_ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN", "")  # generated daily via broker/upstox_api.py login flow
+UPSTOX_API_KEY = _get_secret("UPSTOX_API_KEY", "")
+UPSTOX_API_SECRET = _get_secret("UPSTOX_API_SECRET", "")
+UPSTOX_REDIRECT_URI = _get_secret("UPSTOX_REDIRECT_URI", "https://localhost:3000/callback")
+UPSTOX_ACCESS_TOKEN = _get_secret("UPSTOX_ACCESS_TOKEN", "")  # generated daily via broker/upstox_api.py login flow
 UPSTOX_API_VERSION = "2.0"
 
 # ---------------------------------------------------------------------------
