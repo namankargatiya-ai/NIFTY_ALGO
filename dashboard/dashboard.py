@@ -1,23 +1,28 @@
 """
 Streamlit dashboard for the Nifty Algo Trader.
 
-Run alongside app.py to watch it live:
-    python app.py --delay 0.05          # terminal 1 (use a small delay so you can watch it update)
-    streamlit run dashboard/dashboard.py  # terminal 2
+Runs the data-fetch + strategy pipeline directly (via app.build_state()),
+instead of reading a file written by a separate `python app.py` run — so
+this works both locally AND when deployed (e.g. Streamlit Community Cloud),
+where there's no local process to have written data/live_state.json.
 
-Or just run `python app.py` first and then this dashboard to inspect the
-completed day's results — it reads whatever is currently in data/live_state.json.
+Locally, running `python app.py` first is no longer required, but still
+works fine alongside this if you want the CSV/XLSX exports too.
+
+Credentials: set UPSTOX_ACCESS_TOKEN (and friends) in a local .env file, or
+as Streamlit secrets when deployed — see config.py for the lookup order.
 """
-import json
 import os
 import sys
 import time
+from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config  # noqa: E402
+import app as app_module  # noqa: E402
 
 st.set_page_config(page_title="Nifty Algo Trader", layout="wide", page_icon="📈")
 
@@ -27,22 +32,31 @@ st.set_page_config(page_title="Nifty Algo Trader", layout="wide", page_icon="�
 st.sidebar.title("Nifty Algo Trader")
 st.sidebar.caption("Paper-trading dashboard")
 auto_refresh = st.sidebar.checkbox("Auto-refresh", value=True)
-refresh_secs = st.sidebar.slider("Refresh interval (s)", 1, 10, 2)
+refresh_secs = st.sidebar.slider("Refresh interval (s)", 5, 60, 30)
+st.sidebar.caption("Real data is only re-fetched at most once a minute regardless of this slider.")
 if st.sidebar.button("Refresh now"):
+    st.cache_data.clear()
     st.rerun()
 
-# ---------------------------------------------------------------------------
-# Load shared state
-# ---------------------------------------------------------------------------
-if not os.path.exists(config.LIVE_STATE_PATH):
-    st.warning(
-        f"No state file found yet at `{config.LIVE_STATE_PATH}`.\n\n"
-        "Run `python app.py` first (in paper mode this needs no credentials)."
-    )
-    st.stop()
+if not config.UPSTOX_ACCESS_TOKEN:
+    st.sidebar.warning("No Upstox token configured — showing synthetic demo data. "
+                        "Set UPSTOX_ACCESS_TOKEN in .env (local) or Streamlit secrets (deployed).")
 
-with open(config.LIVE_STATE_PATH) as f:
-    state = json.load(f)
+
+# ---------------------------------------------------------------------------
+# Fetch + run the pipeline (cached so auto-refresh doesn't hammer the API)
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=60, show_spinner="Fetching data and running strategy...")
+def get_state():
+    result = app_module.build_state(write_files=False)
+    return result["state"]
+
+
+try:
+    state = get_state()
+except Exception as e:
+    st.error(f"Failed to fetch data / run strategy: {e}")
+    st.stop()
 
 meta = state.get("meta", {})
 bars = state.get("bars", [])
@@ -133,7 +147,7 @@ if trades:
          "entry_premium", "exit_premium", "stop_loss", "target",
          "pnl_points", "pnl_rupees", "exit_reason", "duration"]
     ]
-    st.dataframe(tdf, use_container_width=True, hide_index=True)
+    st.dataframe(tdf, width="stretch", hide_index=True)
 else:
     st.caption("No trades closed yet")
 
@@ -147,6 +161,8 @@ if meta.get("eod_stats"):
     eod_cols = st.columns(4)
     for i, (k, v) in enumerate(stats.items()):
         eod_cols[i % 4].metric(k, v)
+
+st.caption(f"Last fetched: {datetime.now().strftime('%H:%M:%S')} (cached up to 60s)")
 
 # ---------------------------------------------------------------------------
 # Auto-refresh
