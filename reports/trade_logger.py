@@ -33,6 +33,7 @@ def trade_to_row(t):
 
 def write_csv(trades, path=None):
     path = path or os.path.join(config.EXPORTS_DIR, "trade_log.csv")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     rows = [trade_to_row(t) for t in trades]
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=TRADE_FIELDS)
@@ -44,6 +45,7 @@ def write_csv(trades, path=None):
 
 def write_xlsx(rows, eod_stats, path=None):
     path = path or os.path.join(config.EXPORTS_DIR, "trade_log.xlsx")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Trade Log"
