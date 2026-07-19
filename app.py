@@ -159,12 +159,25 @@ def resolve_expiry(trade_date, broker):
 
 
 def write_live_state(bars, trades_open_rows, meta):
+    import os
+    os.makedirs(config.DATA_DIR, exist_ok=True)
     state = {"meta": meta, "bars": bars, "trades": trades_open_rows}
     with open(config.LIVE_STATE_PATH, "w") as f:
         json.dump(state, f, default=str)
+    return state
 
 
-def run(trade_date=None, delay=0.0):
+def build_state(trade_date=None, delay=0.0, write_files=True):
+    """Runs the full pipeline and returns the live-state dict directly —
+    {"meta", "bars", "trades"} — the same shape as data/live_state.json.
+
+    write_files=True (the default, used by the CLI via run()) also writes
+    the CSV/XLSX/JSON files to disk as before. write_files=False skips all
+    file I/O and just returns the dict in memory — used by dashboard.py so
+    it can call this directly instead of reading a file that only exists
+    when app.py has been run locally (e.g. when deployed, where there's no
+    such file at all).
+    """
     requested_date = trade_date or datetime.now().date()
     history_15min, today_1min, data_source, trade_date = load_day_data(requested_date)
 
@@ -200,6 +213,12 @@ def run(trade_date=None, delay=0.0):
 
     bars_log = []
 
+    def current_meta(eod_stats=None):
+        meta = {"trade_date": str(trade_date), "data_source": data_source, "expiry": expiry_dt.isoformat()}
+        if eod_stats is not None:
+            meta["eod_stats"] = eod_stats
+        return meta
+
     def log_bar(dt, spot, session, tf, trend, ema_val, status, live_premium=None):
         t = trader.active_trade
         pnl_pts = round(live_premium - t.entry_premium, 2) if (t and live_premium is not None) else None
@@ -216,10 +235,9 @@ def run(trade_date=None, delay=0.0):
             "active_pnl_rs": round(pnl_pts * config.LOT_SIZE, 2) if pnl_pts is not None else None,
             "trades_so_far": len(trader.closed_trades),
         })
-        if len(bars_log) % 5 == 0:
+        if write_files and len(bars_log) % 5 == 0:
             rows_so_far = [trade_to_row(t) for t in trader.closed_trades]
-            write_live_state(bars_log, rows_so_far,
-                              {"trade_date": str(trade_date), "data_source": data_source, "expiry": expiry_dt.isoformat()})
+            write_live_state(bars_log, rows_so_far, current_meta())
 
     # ---------------- Session 1 ----------------
     bucket = []
@@ -278,18 +296,30 @@ def run(trade_date=None, delay=0.0):
             final_premium = _price_active(trader, last_row["close"], engine, last_row["datetime"])
             trader.force_close(last_row["datetime"], final_premium, "Market Close")
 
-    rows, csv_path = write_csv(trader.closed_trades)
+    rows = [trade_to_row(t) for t in trader.closed_trades]
     eod_stats = compute_eod_stats(rows, trade_date)
-    xlsx_path = write_xlsx(rows, eod_stats)
-    write_live_state(bars_log, rows,
-                      {"trade_date": str(trade_date), "data_source": data_source, "expiry": expiry_dt.isoformat(),
-                       "eod_stats": eod_stats})
+    meta = current_meta(eod_stats)
 
-    print(f"\nTrade log: {csv_path}\nWorkbook:  {xlsx_path}\nLive state: {config.LIVE_STATE_PATH}\n")
-    for k, v in eod_stats.items():
+    csv_path = xlsx_path = None
+    if write_files:
+        rows, csv_path = write_csv(trader.closed_trades)
+        xlsx_path = write_xlsx(rows, eod_stats)
+        write_live_state(bars_log, rows, meta)
+
+    state = {"meta": meta, "bars": bars_log, "trades": rows}
+    return {"state": state, "closed_trades": trader.closed_trades, "eod_stats": eod_stats,
+            "csv_path": csv_path, "xlsx_path": xlsx_path}
+
+
+def run(trade_date=None, delay=0.0):
+    """CLI entrypoint — runs build_state() with file writes enabled, prints
+    the EOD summary, and returns (closed_trades, eod_stats) for callers that
+    used the old interface (e.g. the backtest scripts)."""
+    result = build_state(trade_date=trade_date, delay=delay, write_files=True)
+    print(f"\nTrade log: {result['csv_path']}\nWorkbook:  {result['xlsx_path']}\nLive state: {config.LIVE_STATE_PATH}\n")
+    for k, v in result["eod_stats"].items():
         print(f"  {k}: {v}")
-
-    return trader.closed_trades, eod_stats
+    return result["closed_trades"], result["eod_stats"]
 
 
 def _price_active(trader, spot, engine, now_dt):
