@@ -5,14 +5,17 @@ STATUS: UNTESTED against a live Upstox account or the sandbox environment —
 this sandbox has no network route to Upstox. Do not point this at real
 capital until you have:
   1. Run it against Upstox's sandbox environment end-to-end.
-  2. Verified `strategy/option_confirmation.py` resolves the correct, currently
-     tradable `instrument_token` for each contract (this module currently
-     reuses the OCC-style symbol as a placeholder `instrument_token` — you
-     MUST replace this with the real Upstox instrument key from
-     `broker.get_option_contracts()`, e.g. "NSE_FO|12345", before placing
-     real orders. Market orders are irreversible.
   2. Confirmed LOT_SIZE, product type ("I" for intraday MIS), and margin
      requirements with your broker.
+
+Orders are placed against `signal.instrument_key` / `trade.instrument_key` —
+the real Upstox instrument key resolved by
+`strategy/option_confirmation.py._resolve_contract()` (e.g. "NSE_FO|12345"),
+not the human-readable trading symbol. `open()` refuses to place an order at
+all when that key is None (no real contract was resolved for this strike —
+e.g. no broker connected, or the strike isn't currently listed), since
+placing a market order against a guessed symbol string can fail outright or,
+worse, silently target the wrong contract. Market orders are irreversible.
 
 To reduce the chance of an accidental live order, this class requires
 `confirm_live=True` to be passed explicitly at construction — there is no
@@ -46,11 +49,13 @@ class LiveTrader:
         if self.has_open_position:
             return None
 
-        # TODO: replace `signal.symbol` with the real Upstox instrument_token
-        # for this contract — see module docstring. Placing an order against
-        # an OCC-style symbol string instead of a real instrument key WILL FAIL.
+        if not signal.instrument_key:
+            print(f"[live_trader] no real instrument_key resolved for {signal.symbol} "
+                  f"— refusing to place a live order against a guessed symbol")
+            return None
+
         response = self.broker.place_market_order(
-            instrument_token=signal.symbol,
+            instrument_token=signal.instrument_key,
             transaction_type="BUY",
             quantity=config.LOT_SIZE * config.POSITION_SIZE_LOTS,
             product="I",
@@ -67,6 +72,7 @@ class LiveTrader:
             trade_type=signal.trade_type,
             strike=signal.strike,
             option_symbol=signal.symbol,
+            instrument_key=signal.instrument_key,
             entry_premium=signal.entry_premium,
             stop_loss=signal.stop_loss,
             target=signal.target,
@@ -94,7 +100,7 @@ class LiveTrader:
     def _close(self, current_time, premium, reason):
         t = self.active_trade
         response = self.broker.place_market_order(
-            instrument_token=t.option_symbol,
+            instrument_token=t.instrument_key,
             transaction_type="SELL",
             quantity=config.LOT_SIZE * config.POSITION_SIZE_LOTS,
             product="I",
