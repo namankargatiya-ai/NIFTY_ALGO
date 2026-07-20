@@ -152,9 +152,17 @@ class OptionConfirmation:
         premium. Only falls back to the live option-chain quote when no
         candle exists yet for now_dt (the current, still-forming minute) —
         see module docstring for why this ordering matters.
+
+        `instrument_key` in the returned dict is Upstox's real tradable
+        instrument key (e.g. "NSE_FO|12345") when a real contract was
+        resolved, or None when we fell back to a guessed symbol (no broker,
+        or this exact strike isn't currently listed) — callers that place
+        real orders (orders/live_trader.py) must refuse to trade when this
+        is None, since there is nothing real to place an order against.
         """
         contract = self._resolve_contract(strike, opt_type)
         symbol = contract.trading_symbol if contract else self._fallback_symbol(strike, opt_type)
+        instrument_key = contract.instrument_key if contract else None
 
         if self.broker is not None and contract is not None:
             premium = self._historical_premium(contract.instrument_key, now_dt)
@@ -165,8 +173,8 @@ class OptionConfirmation:
                 T = time_to_expiry_years(now_dt, self.expiry_dt)
                 _, delta = bs_price_delta(spot, strike, T, config.DEFAULT_IV, opt_type)
                 return {
-                    "strike": strike, "symbol": symbol, "premium": round(premium, 2),
-                    "delta": delta,
+                    "strike": strike, "symbol": symbol, "instrument_key": instrument_key,
+                    "premium": round(premium, 2), "delta": delta,
                     "source": "upstox_historical" if self.replay_date is not None else "upstox_intraday",
                 }
 
@@ -177,6 +185,7 @@ class OptionConfirmation:
             if live is not None:
                 live["strike"] = strike
                 live["symbol"] = symbol
+                live["instrument_key"] = instrument_key
                 live["source"] = "upstox_live"
                 return live
 
@@ -186,6 +195,7 @@ class OptionConfirmation:
         return {
             "strike": strike,
             "symbol": symbol,
+            "instrument_key": instrument_key,
             "premium": round(premium, 2),
             "delta": delta,
             "source": "black_scholes_fallback",
