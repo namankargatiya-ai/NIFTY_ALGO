@@ -18,6 +18,7 @@ class Trade:
     trade_type: str
     strike: float
     option_symbol: str
+    instrument_key: Optional[str]
     entry_premium: float
     stop_loss: float
     target: float
@@ -59,6 +60,7 @@ class PaperTrader:
             trade_type=signal.trade_type,
             strike=signal.strike,
             option_symbol=signal.symbol,
+            instrument_key=signal.instrument_key,
             entry_premium=signal.entry_premium,
             stop_loss=signal.stop_loss,
             target=signal.target,
