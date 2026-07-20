@@ -24,6 +24,7 @@ class TradeSignal:
     trade_type: str          # CALL / PUT
     strike: float
     symbol: str
+    instrument_key: Optional[str]  # real Upstox instrument key, or None if no real contract was resolved
     entry_premium: float
     stop_loss: float
     target: float
@@ -97,6 +98,7 @@ class EntryEngine:
             trade_type=opt_type,
             strike=contract["strike"],
             symbol=contract["symbol"],
+            instrument_key=contract["instrument_key"],
             entry_premium=contract["premium"],
             stop_loss=decision.stop_loss,
             target=decision.target,
