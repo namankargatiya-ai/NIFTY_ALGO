@@ -67,9 +67,8 @@ EMA_PERIOD = 20
 # ---------------------------------------------------------------------------
 # Risk management
 # ---------------------------------------------------------------------------
-MIN_SL_POINTS = 14.0            # minimum stop loss, in option premium points
-MIN_TARGET_POINTS = 15.0        # minimum profit target, in option premium points
-TRAIL_POINTS = 10.0             # trailing distance once target is achieved
+MIN_SL_POINTS = 14.0            # fixed stop loss, in option premium points — never changes, no buffer
+MIN_TARGET_POINTS = 15.0        # fixed profit target, in option premium points — never changes, no trailing
 MAX_ACCEPTABLE_RISK_POINTS = 60.0  # technical SL beyond this -> skip the trade
 POSITION_SIZE_LOTS = 1
 ALLOW_PYRAMIDING = False
