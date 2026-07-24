@@ -1,12 +1,14 @@
 """
 Risk management rules:
-  - Minimum SL: 14 option premium points (config.MIN_SL_POINTS).
-  - Technical SL: the 3-candle pattern's underlying point-range translated
-    into option-premium terms via the option's delta at entry. The larger of
-    the technical SL and the 14-point floor is used.
+  - Fixed SL: always exactly 14 option premium points (config.MIN_SL_POINTS).
+    No buffer and no widening beyond this — the technical (candle-range) SL
+    is used only to decide whether to skip a trade, never to size the SL.
   - If the technical SL exceeds MAX_ACCEPTABLE_RISK_POINTS, the trade is
     skipped (configurable).
-  - Minimum target: 15 option premium points (config.MIN_TARGET_POINTS).
+  - Fixed target: always exactly 15 option premium points
+    (config.MIN_TARGET_POINTS).
+  - No trailing stop loss — a trade exits only at the fixed SL or the fixed
+    target (see orders/paper_trader.py / orders/live_trader.py).
   - Fixed position size, no pyramiding (enforced by orders/paper_trader.py /
     orders/live_trader.py refusing a new entry while a position is open).
 """
@@ -31,8 +33,7 @@ def size_stop_and_target(entry_premium: float, underlying_range_points: float, o
                     f"{config.MAX_ACCEPTABLE_RISK_POINTS} pts"
         )
 
-    sl_points = max(technical_sl_pts, config.MIN_SL_POINTS)
-    stop_loss = round(entry_premium - sl_points, 2)
+    stop_loss = round(entry_premium - config.MIN_SL_POINTS, 2)
     target = round(entry_premium + config.MIN_TARGET_POINTS, 2)
     return RiskDecision(approved=True, stop_loss=stop_loss, target=target)
 
