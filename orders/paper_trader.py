@@ -70,16 +70,18 @@ class PaperTrader:
         """Feed the latest premium for the active trade. Returns the closed
         Trade if this update triggered an exit, else None.
 
-        Fixed SL/target only — no trailing, no buffer. Exits the instant the
-        premium touches either fixed level."""
+        Fixed SL/target only — no trailing, no buffer. Fills are capped at
+        the fixed level itself (not whatever price the market gapped to),
+        so realized P&L is always exactly -14 or +15 points, even when a
+        candle's low/high blows straight through the level."""
         if not self.has_open_position:
             return None
 
         t = self.active_trade
         if current_premium <= t.stop_loss:
-            return self._close(current_time, current_premium, "Stop Loss")
+            return self._close(current_time, t.stop_loss, "Stop Loss")
         if current_premium >= t.target:
-            return self._close(current_time, current_premium, "Target")
+            return self._close(current_time, t.target, "Target")
         return None
 
     def force_close(self, current_time, current_premium: float, reason="Market Close"):
