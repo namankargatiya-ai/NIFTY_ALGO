@@ -8,7 +8,6 @@ placed.
 from dataclasses import dataclass, field
 from typing import Optional
 import config
-from risk.trailing_stop import TrailingStopManager
 
 
 @dataclass
@@ -44,7 +43,6 @@ class Trade:
 class PaperTrader:
     def __init__(self):
         self.active_trade: Optional[Trade] = None
-        self._trailing: Optional[TrailingStopManager] = None
         self.closed_trades = []
 
     @property
@@ -66,21 +64,22 @@ class PaperTrader:
             target=signal.target,
         )
         self.active_trade = trade
-        self._trailing = TrailingStopManager(signal.entry_premium, signal.target, signal.stop_loss)
         return trade
 
     def update(self, current_time, current_premium: float):
         """Feed the latest premium for the active trade. Returns the closed
-        Trade if this update triggered an exit, else None."""
+        Trade if this update triggered an exit, else None.
+
+        Fixed SL/target only — no trailing, no buffer. Exits the instant the
+        premium touches either fixed level."""
         if not self.has_open_position:
             return None
 
-        result = self._trailing.update(current_premium)
-        self.active_trade.stop_loss = self._trailing.stop_loss  # keep visible SL current for dashboards
-
-        if result in ("stop_loss", "trailing_stop"):
-            return self._close(current_time, current_premium,
-                                "Stop Loss" if result == "stop_loss" else "Trailing Stop")
+        t = self.active_trade
+        if current_premium <= t.stop_loss:
+            return self._close(current_time, current_premium, "Stop Loss")
+        if current_premium >= t.target:
+            return self._close(current_time, current_premium, "Target")
         return None
 
     def force_close(self, current_time, current_premium: float, reason="Market Close"):
@@ -95,5 +94,4 @@ class PaperTrader:
         t.exit_reason = reason
         self.closed_trades.append(t)
         self.active_trade = None
-        self._trailing = None
         return t
