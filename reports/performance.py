@@ -6,7 +6,7 @@ def compute_eod_stats(rows, trading_date):
     total = len(rows)
     wins = [r for r in rows if (r["pnl_points"] or 0) > 0]
     losses = [r for r in rows if (r["pnl_points"] or 0) <= 0]
-    target_hits = [r for r in rows if r["exit_reason"] in ("Target", "Trailing Stop")]
+    target_hits = [r for r in rows if r["exit_reason"] == "Target"]
     sl_hits = [r for r in rows if r["exit_reason"] == "Stop Loss"]
 
     gross_profit = sum(r["pnl_rupees"] for r in wins) if wins else 0
