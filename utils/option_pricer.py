@@ -35,9 +35,9 @@ def time_to_expiry_years(current_dt, expiry_dt):
 
 
 def nearest_itm_strikes(spot, strike_step=None):
-    """Nearest ITM call & put strikes (one step ITM from ATM)."""
+    """ITM call & put strikes, two steps ITM from ATM."""
     step = strike_step or config.STRIKE_STEP
     atm = round(spot / step) * step
-    itm_call_strike = atm - step
-    itm_put_strike = atm + step
+    itm_call_strike = atm - 2 * step
+    itm_put_strike = atm + 2 * step
     return itm_call_strike, itm_put_strike
