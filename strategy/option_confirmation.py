@@ -1,6 +1,6 @@
 """
 Given a breakout side (CALL/PUT) and the current spot price, this module:
-  1. Selects the nearest ITM strike (one step ITM from ATM).
+  1. Selects the ITM strike two steps ITM from ATM.
   2. Resolves the REAL tradable contract (instrument_key, trading_symbol)
      via broker/upstox_api.py's get_option_contracts — not a hand-built
      OCC-style guess, which can silently reference a contract that doesn't
@@ -135,7 +135,7 @@ class OptionConfirmation:
         return [r for r in rows if start <= r["datetime"] <= end]
 
     def confirm(self, now_dt: datetime, spot: float, opt_type: str):
-        """Entry-time: derive the nearest-ITM strike fresh from spot, then price it."""
+        """Entry-time: derive the ITM strike (two steps ITM) fresh from spot, then price it."""
         call_strike, put_strike = nearest_itm_strikes(spot)
         strike = call_strike if opt_type == "CALL" else put_strike
         return self.price_strike(strike, opt_type, now_dt, spot)
