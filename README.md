@@ -2,9 +2,9 @@
 
 A modular intraday options algo-trading system for NIFTY: multi-timeframe
 trend filter + 3-candle pullback/breakout entries, fixed risk management
-with a trailing stop, full trade logging/EOD reporting, a live-style
-Streamlit dashboard, and a real (but unverified-live) Upstox Connect broker
-integration.
+(14-point SL / 15-point target, no buffer, no trailing), full trade
+logging/EOD reporting, a live-style Streamlit dashboard, and a real (but
+unverified-live) Upstox Connect broker integration.
 
 ## Quick start (paper trading — safe, needs no credentials)
 
@@ -31,15 +31,14 @@ strategy/
   trend_filter.py         15-min 20-EMA trend filter (Session 1 only)
   candle_pattern.py        3-candle pullback pattern detector (CALL/PUT setups)
   swing_detector.py        Fractal swing high/low utility (optional extra confirmation)
-  option_confirmation.py   Resolves nearest-ITM contract + real/simulated premium
+  option_confirmation.py   Resolves ITM (2 steps) contract + real/simulated premium
   entry_logic.py            Orchestrates the above into a single entry decision (TradeSignal)
 
 indicators/
   ema.py                   EMA math (batch + streaming)
 
 risk/
-  risk_manager.py          SL/target sizing, max-risk skip rule
-  trailing_stop.py          Trailing stop state machine
+  risk_manager.py          Fixed SL/target sizing (14/15 pts, no buffer), max-risk skip rule
 
 orders/
   paper_trader.py           Simulated executor (default, safe, fully tested)
@@ -53,7 +52,7 @@ dashboard/
   dashboard.py               Streamlit live/replay dashboard
 
 utils/
-  option_pricer.py           Black-Scholes fallback pricer + nearest-ITM strike calc
+  option_pricer.py           Black-Scholes fallback pricer + ITM (2-step) strike calc
   synthetic_data.py           Synthetic NIFTY data generator (fallback when no broker connected)
 
 logs/, data/, exports/    Runtime output (live_state.json, trade_log.csv/xlsx) — gitignored
@@ -98,15 +97,15 @@ exercised against a live account or Upstox's sandbox environment**. Before
 
 ## Key assumptions (all centralized in `config.py`)
 - Lot size: 75 — **confirm against the current NSE-published lot size.**
-- Strike step: 50; nearest ITM = one step ITM from ATM.
+- Strike step: 50; ITM strike = two steps ITM from ATM (CALL: ATM - 2 steps, PUT: ATM + 2 steps).
 - Flat IV (13%) and risk-free rate (7%) for the Black-Scholes fallback — no
   smile/skew, since that needs a live option chain.
 - Expiry treated as the next Thursday (NIFTY weekly convention).
-- Technical SL = 3-candle pattern's underlying range × option delta at entry,
-  floored at 14 premium points; trades needing a wider stop than 60 points
-  are skipped (configurable).
-- Trailing stop: 10 points behind the highest premium once the 15-point
-  minimum target is hit.
+- SL is fixed at 14 premium points and target is fixed at 15 premium points —
+  never adjusted, no buffer, no trailing. The 3-candle pattern's underlying
+  range × option delta at entry is used only to decide whether to skip a
+  trade (wider than 60 points -> skipped, configurable), never to size the
+  SL.
 - Brokerage estimate: ₹40/round-trip flat placeholder — replace with your
   actual broker's charges in `config.ESTIMATED_CHARGES_PER_TRADE`.
 
