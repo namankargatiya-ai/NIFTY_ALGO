@@ -1,6 +1,7 @@
 """
 Orchestrates the full entry decision for one completed candle:
   1. (Session 1 only) check the 15-min EMA trend filter.
+  1. Check the 15-min EMA trend filter.
   2. Feed the candle to the relevant 3-candle pullback pattern tracker(s).
   3. On a breakout, resolve the real/simulated option contract (strike,
      symbol, premium, delta) via strategy/option_confirmation.py.
@@ -68,12 +69,25 @@ class EntryEngine:
         from risk.risk_manager import size_stop_and_target
 
         spot = candle["close"]
+        trend = self.trend_filter.trend_for(spot)
 
         call_rng = self.call_pattern.range_points()
         if self.call_pattern.process(candle):
             signal = self._try_open(now_dt, spot, "CALL", call_rng, size_stop_and_target)
+        if trend == "Bullish":
+            self.put_pattern.reset()
+            rng = self.call_pattern.range_points()
+            if self.call_pattern.process(candle):
+                signal = self._try_open(now_dt, spot, "CALL", rng, size_stop_and_target)
+                self.call_pattern.reset()
+                return signal
+        elif trend == "Bearish":
             self.call_pattern.reset()
             if signal:
+            rng = self.put_pattern.range_points()
+            if self.put_pattern.process(candle):
+                signal = self._try_open(now_dt, spot, "PUT", rng, size_stop_and_target)
+                self.put_pattern.reset()
                 return signal
 
         put_rng = self.put_pattern.range_points()
