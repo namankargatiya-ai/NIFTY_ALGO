@@ -1,5 +1,6 @@
 """
 Higher-timeframe trend filter used only in Session 1 (09:15-10:30).
+Higher-timeframe trend filter used in Session 1 and Session 2.
 
 Bullish: current NIFTY price is above the 20 EMA on the 15-minute timeframe.
 Bearish: current NIFTY price is below the 20 EMA on the 15-minute timeframe.
