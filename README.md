@@ -29,6 +29,7 @@ broker/
 
 strategy/
   trend_filter.py         15-min 20-EMA trend filter (Session 1 only)
+  trend_filter.py         15-min 20-EMA trend filter (Session 1 & Session 2)
   candle_pattern.py        3-candle pullback pattern detector (CALL/PUT setups)
   swing_detector.py        Fractal swing high/low utility (optional extra confirmation)
   option_confirmation.py   Resolves ITM (2 steps) contract + real/simulated premium
