@@ -269,15 +269,8 @@ def build_state(trade_date=None, delay=0.0, write_files=True):
     # ---------------- Session 2 ----------------
     engine.call_pattern.reset()
     engine.put_pattern.reset()
-    bucket_session2 = []
-    bars_per_15min = max(1, config.TREND_FILTER_TIMEFRAME_MINUTES // config.SESSION2_CANDLE_MINUTES)
     for _, row in session2.iterrows():
         spot = row["close"]
-        bucket_session2.append(row)
-        if len(bucket_session2) == bars_per_15min:
-            engine.on_completed_15min_bar(bucket_session2[-1]["close"])
-            bucket_session2 = []
-
         status = "Waiting for Setup"
         live_premium = None
         if trader.has_open_position:
@@ -293,8 +286,6 @@ def build_state(trade_date=None, delay=0.0, write_files=True):
                 status = "Waiting for Breakout"
 
         log_bar(row["datetime"], spot, "Session 2", "3-min", "N/A", None, status, live_premium)
-        log_bar(row["datetime"], spot, "Session 2", f"{config.SESSION2_CANDLE_MINUTES}-min",
-                engine.trend_filter.trend_for(spot), engine.trend_filter.value, status, live_premium)
         if delay:
             time.sleep(delay)
 
